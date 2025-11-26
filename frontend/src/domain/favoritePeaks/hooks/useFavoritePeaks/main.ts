@@ -3,14 +3,14 @@ import { favoritePeakService } from '../../services';
 import type { CreateFavoritePeakDto, UpdatePositionDto } from '../../types';
 import type { UseFavoritePeaksOptions, UseFavoritePeaksReturn } from './types';
 
-export const useFavoritePeaks = (options: UseFavoritePeaksOptions = {}): UseFavoritePeaksReturn => {
+export const useFavoritePeaks = (options?: UseFavoritePeaksOptions): UseFavoritePeaksReturn => {
   const queryClient = useQueryClient();
   const queryKey = ['favoritePeaks'];
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey,
     queryFn: () => favoritePeakService.list(),
-    enabled: options.enabled ?? true,
+    enabled: options?.enabled ?? true,
   });
 
   const { mutateAsync: create, isPending: isCreating } = useMutation({
@@ -21,22 +21,18 @@ export const useFavoritePeaks = (options: UseFavoritePeaksOptions = {}): UseFavo
   });
 
   const { mutateAsync: remove, isPending: isRemoving } = useMutation({
-    mutationFn: (idFavoritePeak: number) => favoritePeakService.delete(idFavoritePeak),
+    mutationFn: (id: number) => favoritePeakService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
     },
   });
 
   const { mutateAsync: updatePosition, isPending: isUpdatingPosition } = useMutation({
-    mutationFn: ({ idFavoritePeak, dto }: { idFavoritePeak: number; dto: UpdatePositionDto }) =>
-      favoritePeakService.updatePosition(idFavoritePeak, dto),
+    mutationFn: ({ id, dto }: { id: number; dto: UpdatePositionDto }) =>
+      favoritePeakService.updatePosition(id, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
     },
-  });
-
-  const { mutateAsync: checkExists } = useMutation({
-    mutationFn: (peakId: string) => favoritePeakService.checkExists(peakId),
   });
 
   return {
@@ -47,7 +43,6 @@ export const useFavoritePeaks = (options: UseFavoritePeaksOptions = {}): UseFavo
     create,
     remove,
     updatePosition,
-    checkExists,
     isCreating,
     isRemoving,
     isUpdatingPosition,

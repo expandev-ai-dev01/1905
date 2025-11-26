@@ -1,9 +1,9 @@
 import { authenticatedClient } from '@/core/lib/api';
 import type {
   FavoritePeak,
-  CreateFavoritePeakDto,
-  UpdatePositionDto,
-  CheckFavoriteResponse,
+  FavoritePeakCreateDto,
+  FavoritePeakUpdatePositionDto,
+  FavoritePeakCheckResponse,
 } from '../types';
 
 /**
@@ -16,45 +16,39 @@ export const favoritePeakService = {
    * List all favorite peaks for authenticated user
    */
   async list(): Promise<FavoritePeak[]> {
-    const { data } = await authenticatedClient.get('/favorite-peak');
+    const { data } = await authenticatedClient.get<{ data: FavoritePeak[] }>('/favorite-peak');
     return data.data;
   },
 
   /**
-   * Create a new favorite peak
+   * Add a peak to favorites
    */
-  async create(dto: CreateFavoritePeakDto): Promise<{ idFavoritePeak: number }> {
-    const { data } = await authenticatedClient.post('/favorite-peak', dto);
+  async create(dto: FavoritePeakCreateDto): Promise<FavoritePeak> {
+    const { data } = await authenticatedClient.post<{ data: FavoritePeak }>('/favorite-peak', dto);
     return data.data;
   },
 
   /**
-   * Delete a favorite peak by ID
+   * Remove a peak from favorites
    */
-  async delete(idFavoritePeak: number): Promise<{ success: boolean }> {
-    const { data } = await authenticatedClient.delete(`/favorite-peak/${idFavoritePeak}`);
-    return data.data;
+  async delete(idFavoritePeak: number): Promise<void> {
+    await authenticatedClient.delete(`/favorite-peak/${idFavoritePeak}`);
   },
 
   /**
    * Update position of a favorite peak
    */
-  async updatePosition(
-    idFavoritePeak: number,
-    dto: UpdatePositionDto
-  ): Promise<{ success: boolean }> {
-    const { data } = await authenticatedClient.patch(
-      `/favorite-peak/${idFavoritePeak}/position`,
-      dto
-    );
-    return data.data;
+  async updatePosition(idFavoritePeak: number, dto: FavoritePeakUpdatePositionDto): Promise<void> {
+    await authenticatedClient.patch(`/favorite-peak/${idFavoritePeak}/position`, dto);
   },
 
   /**
-   * Check if a peak is in user's favorites
+   * Check if a peak is favorited
    */
-  async checkExists(peakId: string): Promise<CheckFavoriteResponse> {
-    const { data } = await authenticatedClient.get(`/favorite-peak/check/${peakId}`);
+  async checkExists(peakId: string): Promise<FavoritePeakCheckResponse> {
+    const { data } = await authenticatedClient.get<{ data: FavoritePeakCheckResponse }>(
+      `/favorite-peak/check/${peakId}`
+    );
     return data.data;
   },
 };

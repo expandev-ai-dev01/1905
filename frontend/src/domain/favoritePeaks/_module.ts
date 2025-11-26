@@ -1,4 +1,12 @@
-export * from './components';
-export * from './hooks';
-export * from './services';
-export type * from './types';
+export * from './components/FavoriteButton';
+export * from './components/FavoritePeakList';
+export * from './hooks/useFavoritePeakList';
+export * from './hooks/useFavoritePeakCheck';
+export * from './services/favoritePeakService';
+export type {
+  FavoritePeak,
+  FavoritePeakCreateDto,
+  FavoritePeakUpdatePositionDto,
+  FavoritePeakCheckResponse,
+  UserType,
+} from './types';

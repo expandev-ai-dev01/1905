@@ -1,73 +1,97 @@
-import { Trash2, GripVertical } from 'lucide-react';
+import { MapPin, Waves, Wind, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/core/components/card';
 import { Button } from '@/core/components/button';
 import { cn } from '@/core/lib/utils';
 import type { FavoritePeakCardProps } from './types';
 
 function FavoritePeakCard({
-  favoritePeak,
-  onRemove,
+  peak,
   onViewDetails,
-  isDragging,
-  dragHandleProps,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
+  isLoading,
 }: FavoritePeakCardProps) {
-  const handleRemove = () => {
-    if (window.confirm(`Tem certeza que deseja remover ${favoritePeak.peakName} dos favoritos?`)) {
-      onRemove(favoritePeak.idFavoritePeak);
-    }
-  };
-
   return (
     <Card
       className={cn(
-        'transition-all duration-200 hover:shadow-md',
-        isDragging && 'opacity-50 shadow-lg'
+        'group transition-all duration-200 hover:shadow-lg',
+        isLoading && 'pointer-events-none opacity-50'
       )}
     >
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <div className="flex items-center gap-2">
-          <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing">
-            <GripVertical className="text-muted-foreground h-5 w-5" />
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <CardTitle className="text-primary text-xl font-bold">{peak.peakName}</CardTitle>
+            <div className="text-muted-foreground mt-1 flex items-center text-sm">
+              <MapPin className="mr-1 h-4 w-4" aria-hidden="true" />
+              <span>{peak.location}</span>
+            </div>
           </div>
-          <CardTitle className="text-lg font-semibold">{favoritePeak.peakName}</CardTitle>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onMoveUp}
+              disabled={!canMoveUp || isLoading}
+              className="h-8 w-8"
+              aria-label="Mover para cima"
+            >
+              <ArrowUp className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onMoveDown}
+              disabled={!canMoveDown || isLoading}
+              className="h-8 w-8"
+              aria-label="Mover para baixo"
+            >
+              <ArrowDown className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onRemove}
+              disabled={isLoading}
+              className="text-destructive hover:bg-destructive/10 h-8 w-8"
+              aria-label="Remover dos favoritos"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleRemove}
-          className="text-destructive hover:bg-destructive/10"
-          aria-label={`Remover ${favoritePeak.peakName} dos favoritos`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground mb-4 text-sm">{favoritePeak.location}</p>
-        {favoritePeak.currentConditions && (
-          <div className="bg-muted/50 mb-4 grid grid-cols-2 gap-2 rounded-md p-3">
-            <div>
-              <p className="text-muted-foreground text-xs">Altura</p>
-              <p className="font-semibold">{favoritePeak.currentConditions.waveHeight}m</p>
+        {peak.currentConditions && (
+          <div className="bg-muted/50 mb-4 grid grid-cols-2 gap-3 rounded-lg p-3">
+            <div className="flex items-center gap-2">
+              <Waves className="h-5 w-5 text-blue-500" aria-hidden="true" />
+              <div>
+                <p className="text-muted-foreground text-xs">Altura</p>
+                <p className="font-semibold">{peak.currentConditions.waveHeight}m</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Wind className="h-5 w-5 text-green-500" aria-hidden="true" />
+              <div>
+                <p className="text-muted-foreground text-xs">Vento</p>
+                <p className="font-semibold">{peak.currentConditions.windSpeed} km/h</p>
+              </div>
             </div>
             <div>
               <p className="text-muted-foreground text-xs">Direção</p>
-              <p className="font-semibold">{favoritePeak.currentConditions.swellDirection}</p>
+              <p className="font-semibold">{peak.currentConditions.swellDirection}</p>
             </div>
             <div>
               <p className="text-muted-foreground text-xs">Período</p>
-              <p className="font-semibold">{favoritePeak.currentConditions.period}s</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs">Vento</p>
-              <p className="font-semibold">{favoritePeak.currentConditions.windSpeed} km/h</p>
+              <p className="font-semibold">{peak.currentConditions.period}s</p>
             </div>
           </div>
         )}
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => onViewDetails(favoritePeak.peakId)}
-        >
+        <Button onClick={onViewDetails} className="w-full" disabled={isLoading}>
           Ver Previsão Completa
         </Button>
       </CardContent>
