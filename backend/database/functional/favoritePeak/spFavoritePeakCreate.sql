@@ -1,8 +1,8 @@
 /**
  * @summary
- * Creates a new favorite peak entry for a user. Validates user type limits
- * (free users: 10 peaks max, premium: unlimited) and prevents duplicate entries.
- * Automatically assigns the next available position in the user's list.
+ * Creates a new favorite peak for a user. Validates user type limits
+ * (free users: max 10 peaks, premium: unlimited) and prevents duplicate
+ * peaks. Automatically assigns the next available position in the list.
  *
  * @procedure spFavoritePeakCreate
  * @schema functional
@@ -26,7 +26,7 @@
  *
  * @param {NVARCHAR(20)} userType
  *   - Required: Yes
- *   - Description: User plan type ('free' or 'premium')
+ *   - Description: User plan type ('gratuito' or 'premium')
  *
  * @returns {INT} idFavoritePeak - Created favorite peak identifier
  *
@@ -34,8 +34,8 @@
  * - Valid creation for free user within limit
  * - Valid creation for premium user
  * - Rejection when free user exceeds 10 peaks limit
- * - Rejection when peak already favorited
- * - Rejection when user doesn't exist
+ * - Rejection when peak already exists in user's favorites
+ * - Rejection for invalid parameters
  */
 CREATE OR ALTER PROCEDURE [functional].[spFavoritePeakCreate]
   @idAccount INTEGER,
@@ -46,121 +46,95 @@ AS
 BEGIN
   SET NOCOUNT ON;
 
+  /**
+   * @validation Required parameter validation
+   * @throw {idAccountRequired}
+   * @throw {idUserRequired}
+   * @throw {peakIdRequired}
+   * @throw {userTypeRequired}
+   */
+  IF (@idAccount IS NULL)
+  BEGIN
+    ;THROW 51000, 'idAccountRequired', 1;
+  END;
+
+  IF (@idUser IS NULL)
+  BEGIN
+    ;THROW 51000, 'idUserRequired', 1;
+  END;
+
+  IF (@peakId IS NULL OR LTRIM(RTRIM(@peakId)) = '')
+  BEGIN
+    ;THROW 51000, 'peakIdRequired', 1;
+  END;
+
+  IF (@userType IS NULL OR LTRIM(RTRIM(@userType)) = '')
+  BEGIN
+    ;THROW 51000, 'userTypeRequired', 1;
+  END;
+
+  /**
+   * @validation User type validation
+   * @throw {invalidUserType}
+   */
+  IF (@userType NOT IN ('gratuito', 'premium'))
+  BEGIN
+    ;THROW 51000, 'invalidUserType', 1;
+  END;
+
+  /**
+   * @validation Check if peak already exists in user's favorites
+   * @throw {peakAlreadyFavorited}
+   */
+  IF EXISTS (
+    SELECT *
+    FROM [functional].[favoritePeak] favPk
+    WHERE [favPk].[idAccount] = @idAccount
+      AND [favPk].[idUser] = @idUser
+      AND [favPk].[peakId] = @peakId
+  )
+  BEGIN
+    ;THROW 51000, 'peakAlreadyFavorited', 1;
+  END;
+
   DECLARE @currentCount INTEGER;
-  DECLARE @nextPosition INTEGER;
+  DECLARE @maxPosition INTEGER;
+
+  /**
+   * @rule {BR-003,BR-004} Validate user type limits
+   * Free users: max 10 peaks, Premium users: unlimited
+   */
+  SELECT @currentCount = COUNT(*)
+  FROM [functional].[favoritePeak] favPk
+  WHERE [favPk].[idAccount] = @idAccount
+    AND [favPk].[idUser] = @idUser;
+
+  IF (@userType = 'gratuito' AND @currentCount >= 10)
+  BEGIN
+    ;THROW 51000, 'favoritePeakLimitReached', 1;
+  END;
+
+  /**
+   * @rule {RU-005} Calculate next position in list
+   */
+  SELECT @maxPosition = ISNULL(MAX([position]), 0)
+  FROM [functional].[favoritePeak] favPk
+  WHERE [favPk].[idAccount] = @idAccount
+    AND [favPk].[idUser] = @idUser;
 
   BEGIN TRY
-    /**
-     * @validation Validate required parameters
-     * @throw {idAccountRequired}
-     * @throw {idUserRequired}
-     * @throw {peakIdRequired}
-     * @throw {userTypeRequired}
-     */
-    IF @idAccount IS NULL
-    BEGIN
-      ;THROW 51000, 'idAccountRequired', 1;
-    END;
-
-    IF @idUser IS NULL
-    BEGIN
-      ;THROW 51000, 'idUserRequired', 1;
-    END;
-
-    IF @peakId IS NULL OR LTRIM(RTRIM(@peakId)) = ''
-    BEGIN
-      ;THROW 51000, 'peakIdRequired', 1;
-    END;
-
-    IF @userType IS NULL OR LTRIM(RTRIM(@userType)) = ''
-    BEGIN
-      ;THROW 51000, 'userTypeRequired', 1;
-    END;
-
-    /**
-     * @validation Validate user type values
-     * @throw {invalidUserType}
-     */
-    IF @userType NOT IN ('free', 'premium')
-    BEGIN
-      ;THROW 51000, 'invalidUserType', 1;
-    END;
-
-    /**
-     * @validation Verify user exists and belongs to account
-     * @throw {userDoesntExist}
-     */
-    IF NOT EXISTS (
-      SELECT *
-      FROM [security].[user] usr
-      WHERE usr.[idUser] = @idUser
-        AND usr.[idAccount] = @idAccount
-    )
-    BEGIN
-      ;THROW 51000, 'userDoesntExist', 1;
-    END;
-
-    /**
-     * @validation Check if peak already favorited
-     * @throw {peakAlreadyFavorited}
-     */
-    IF EXISTS (
-      SELECT *
-      FROM [functional].[favoritePeak] favPk
-      WHERE favPk.[idAccount] = @idAccount
-        AND favPk.[idUser] = @idUser
-        AND favPk.[peakId] = @peakId
-    )
-    BEGIN
-      ;THROW 51000, 'peakAlreadyFavorited', 1;
-    END;
-
-    /**
-     * @rule {BR-003,BR-004} Validate favorite peaks limit based on user type
-     * @throw {freeLimitReached}
-     */
-    SELECT @currentCount = COUNT(*)
-    FROM [functional].[favoritePeak] favPk
-    WHERE favPk.[idAccount] = @idAccount
-      AND favPk.[idUser] = @idUser;
-
-    IF (@userType = 'free') AND (@currentCount >= 10)
-    BEGIN
-      ;THROW 51000, 'freeLimitReached', 1;
-    END;
-
-    /**
-     * @rule {RU-005} Calculate next position in list
-     */
-    SELECT @nextPosition = ISNULL(MAX(favPk.[position]), 0) + 1
-    FROM [functional].[favoritePeak] favPk
-    WHERE favPk.[idAccount] = @idAccount
-      AND favPk.[idUser] = @idUser;
-
     BEGIN TRAN;
-      /**
-       * @rule {FC-001} Insert new favorite peak
-       */
-      INSERT INTO [functional].[favoritePeak] (
-        [idAccount],
-        [idUser],
-        [peakId],
-        [position],
-        [dateCreated]
-      )
-      VALUES (
-        @idAccount,
-        @idUser,
-        @peakId,
-        @nextPosition,
-        GETUTCDATE()
-      );
+
+      INSERT INTO [functional].[favoritePeak]
+      ([idAccount], [idUser], [peakId], [position], [dateCreated])
+      VALUES
+      (@idAccount, @idUser, @peakId, @maxPosition + 1, GETUTCDATE());
 
       /**
        * @output {FavoritePeakCreated, 1, 1}
        * @column {INT} idFavoritePeak - Created favorite peak identifier
        */
-      SELECT SCOPE_IDENTITY() idFavoritePeak;
+      SELECT SCOPE_IDENTITY() AS [idFavoritePeak];
 
     COMMIT TRAN;
   END TRY

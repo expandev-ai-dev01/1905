@@ -1,7 +1,7 @@
 export type {
   FavoritePeak,
-  FavoritePeakCreateDto,
-  FavoritePeakUpdatePositionDto,
-  FavoritePeakCheckResponse,
-  UserType,
+  FavoritePeakPreview,
+  CreateFavoritePeakDto,
+  UpdatePositionDto,
+  CheckFavoriteResponse,
 } from './favoritePeak';

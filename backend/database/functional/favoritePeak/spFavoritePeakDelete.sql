@@ -1,7 +1,7 @@
 /**
  * @summary
- * Removes a favorite peak from user's list and automatically reorders remaining peaks
- * to maintain sequential positions without gaps.
+ * Removes a peak from user's favorites and automatically reorders remaining
+ * peaks to maintain sequential positions without gaps.
  *
  * @procedure spFavoritePeakDelete
  * @schema functional
@@ -24,9 +24,11 @@
  *   - Description: Favorite peak identifier to delete
  *
  * @testScenarios
- * - Valid deletion with position reordering
- * - Rejection when favorite peak doesn't exist
- * - Rejection when favorite peak belongs to different user
+ * - Valid deletion of favorite peak
+ * - Automatic reordering of remaining peaks
+ * - Rejection when peak doesn't exist
+ * - Rejection when peak doesn't belong to user
+ * - Security validation for account/user access
  */
 CREATE OR ALTER PROCEDURE [functional].[spFavoritePeakDelete]
   @idAccount INTEGER,
@@ -36,48 +38,55 @@ AS
 BEGIN
   SET NOCOUNT ON;
 
+  /**
+   * @validation Required parameter validation
+   * @throw {idAccountRequired}
+   * @throw {idUserRequired}
+   * @throw {idFavoritePeakRequired}
+   */
+  IF (@idAccount IS NULL)
+  BEGIN
+    ;THROW 51000, 'idAccountRequired', 1;
+  END;
+
+  IF (@idUser IS NULL)
+  BEGIN
+    ;THROW 51000, 'idUserRequired', 1;
+  END;
+
+  IF (@idFavoritePeak IS NULL)
+  BEGIN
+    ;THROW 51000, 'idFavoritePeakRequired', 1;
+  END;
+
+  /**
+   * @validation Check if favorite peak exists and belongs to user
+   * @throw {favoritePeakNotFound}
+   */
+  IF NOT EXISTS (
+    SELECT *
+    FROM [functional].[favoritePeak] favPk
+    WHERE [favPk].[idFavoritePeak] = @idFavoritePeak
+      AND [favPk].[idAccount] = @idAccount
+      AND [favPk].[idUser] = @idUser
+  )
+  BEGIN
+    ;THROW 51000, 'favoritePeakNotFound', 1;
+  END;
+
   DECLARE @deletedPosition INTEGER;
 
+  SELECT @deletedPosition = [position]
+  FROM [functional].[favoritePeak] favPk
+  WHERE [favPk].[idFavoritePeak] = @idFavoritePeak
+    AND [favPk].[idAccount] = @idAccount
+    AND [favPk].[idUser] = @idUser;
+
   BEGIN TRY
-    /**
-     * @validation Validate required parameters
-     * @throw {idAccountRequired}
-     * @throw {idUserRequired}
-     * @throw {idFavoritePeakRequired}
-     */
-    IF @idAccount IS NULL
-    BEGIN
-      ;THROW 51000, 'idAccountRequired', 1;
-    END;
-
-    IF @idUser IS NULL
-    BEGIN
-      ;THROW 51000, 'idUserRequired', 1;
-    END;
-
-    IF @idFavoritePeak IS NULL
-    BEGIN
-      ;THROW 51000, 'idFavoritePeakRequired', 1;
-    END;
-
-    /**
-     * @validation Verify favorite peak exists and belongs to user
-     * @throw {favoritePeakDoesntExist}
-     */
-    SELECT @deletedPosition = favPk.[position]
-    FROM [functional].[favoritePeak] favPk
-    WHERE favPk.[idFavoritePeak] = @idFavoritePeak
-      AND favPk.[idAccount] = @idAccount
-      AND favPk.[idUser] = @idUser;
-
-    IF @deletedPosition IS NULL
-    BEGIN
-      ;THROW 51000, 'favoritePeakDoesntExist', 1;
-    END;
-
     BEGIN TRAN;
+
       /**
-       * @rule {FC-003} Delete favorite peak
+       * @rule {BR-009} Delete the favorite peak
        */
       DELETE FROM [functional].[favoritePeak]
       WHERE [idFavoritePeak] = @idFavoritePeak
@@ -85,14 +94,13 @@ BEGIN
         AND [idUser] = @idUser;
 
       /**
-       * @rule {BR-009} Reorder remaining peaks to fill position gap
+       * @rule {BR-009} Reorder remaining peaks to fill the gap
        */
-      UPDATE favPk
-      SET [position] = favPk.[position] - 1
-      FROM [functional].[favoritePeak] favPk
-      WHERE favPk.[idAccount] = @idAccount
-        AND favPk.[idUser] = @idUser
-        AND favPk.[position] > @deletedPosition;
+      UPDATE [functional].[favoritePeak]
+      SET [position] = [position] - 1
+      WHERE [idAccount] = @idAccount
+        AND [idUser] = @idUser
+        AND [position] > @deletedPosition;
 
     COMMIT TRAN;
   END TRY

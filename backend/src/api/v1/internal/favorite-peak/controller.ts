@@ -9,7 +9,6 @@ import {
 import {
   favoritePeakCreate,
   favoritePeakList,
-  favoritePeakGet,
   favoritePeakDelete,
   favoritePeakUpdatePosition,
   favoritePeakCheckExists,
@@ -19,38 +18,25 @@ const securable = 'FAVORITE_PEAK';
 
 const createBodySchema = z.object({
   peakId: z.string().min(1).max(100),
-  userType: z.enum(['free', 'premium']),
+  userType: z.enum(['gratuito', 'premium']),
 });
 
-const idParamSchema = z.object({
+const deleteParamsSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 
-const peakIdParamSchema = z.object({
-  peakId: z.string().min(1).max(100),
+const updatePositionParamsSchema = z.object({
+  id: z.coerce.number().int().positive(),
 });
 
 const updatePositionBodySchema = z.object({
   newPosition: z.number().int().positive(),
 });
 
-/**
- * @api {post} /api/v1/internal/favorite-peak Create Favorite Peak
- * @apiName CreateFavoritePeak
- * @apiGroup FavoritePeak
- * @apiVersion 1.0.0
- *
- * @apiDescription Creates a new favorite peak for the authenticated user
- *
- * @apiParam {String} peakId External peak identifier
- * @apiParam {String} userType User plan type ('free' or 'premium')
- *
- * @apiSuccess {Number} idFavoritePeak Created favorite peak identifier
- *
- * @apiError {String} ValidationError Invalid parameters provided
- * @apiError {String} UnauthorizedError User lacks permission
- * @apiError {String} ServerError Internal server error
- */
+const checkExistsParamsSchema = z.object({
+  peakId: z.string().min(1).max(100),
+});
+
 export async function postHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   const operation = new CrudController([{ securable, permission: 'CREATE' }]);
 
@@ -76,19 +62,6 @@ export async function postHandler(req: Request, res: Response, next: NextFunctio
   }
 }
 
-/**
- * @api {get} /api/v1/internal/favorite-peak List Favorite Peaks
- * @apiName ListFavoritePeaks
- * @apiGroup FavoritePeak
- * @apiVersion 1.0.0
- *
- * @apiDescription Retrieves list of favorite peaks for authenticated user
- *
- * @apiSuccess {Array} data List of favorite peaks
- *
- * @apiError {String} UnauthorizedError User lacks permission
- * @apiError {String} ServerError Internal server error
- */
 export async function listHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   const operation = new CrudController([{ securable, permission: 'READ' }]);
 
@@ -113,63 +86,6 @@ export async function listHandler(req: Request, res: Response, next: NextFunctio
   }
 }
 
-/**
- * @api {get} /api/v1/internal/favorite-peak/:id Get Favorite Peak
- * @apiName GetFavoritePeak
- * @apiGroup FavoritePeak
- * @apiVersion 1.0.0
- *
- * @apiDescription Retrieves a specific favorite peak by identifier
- *
- * @apiParam {Number} id Favorite peak identifier
- *
- * @apiSuccess {Object} data Favorite peak details
- *
- * @apiError {String} ValidationError Invalid parameters provided
- * @apiError {String} UnauthorizedError User lacks permission
- * @apiError {String} ServerError Internal server error
- */
-export async function getHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const operation = new CrudController([{ securable, permission: 'READ' }]);
-
-  const [validated, error] = await operation.read(req, idParamSchema);
-
-  if (!validated) {
-    return next(error);
-  }
-
-  try {
-    const data = await favoritePeakGet({
-      ...validated.credential,
-      idFavoritePeak: validated.params.id,
-    });
-
-    res.json(successResponse(data));
-  } catch (error: any) {
-    if (error.number === 51000) {
-      res.status(400).json(errorResponse(error.message));
-    } else {
-      next(StatusGeneralError);
-    }
-  }
-}
-
-/**
- * @api {delete} /api/v1/internal/favorite-peak/:id Delete Favorite Peak
- * @apiName DeleteFavoritePeak
- * @apiGroup FavoritePeak
- * @apiVersion 1.0.0
- *
- * @apiDescription Removes a favorite peak from user's list
- *
- * @apiParam {Number} id Favorite peak identifier
- *
- * @apiSuccess {Object} data Success confirmation
- *
- * @apiError {String} ValidationError Invalid parameters provided
- * @apiError {String} UnauthorizedError User lacks permission
- * @apiError {String} ServerError Internal server error
- */
 export async function deleteHandler(
   req: Request,
   res: Response,
@@ -177,7 +93,7 @@ export async function deleteHandler(
 ): Promise<void> {
   const operation = new CrudController([{ securable, permission: 'DELETE' }]);
 
-  const [validated, error] = await operation.delete(req, idParamSchema);
+  const [validated, error] = await operation.delete(req, deleteParamsSchema);
 
   if (!validated) {
     return next(error);
@@ -189,7 +105,7 @@ export async function deleteHandler(
       idFavoritePeak: validated.params.id,
     });
 
-    res.json(successResponse({ deleted: true }));
+    res.json(successResponse({ success: true }));
   } catch (error: any) {
     if (error.number === 51000) {
       res.status(400).json(errorResponse(error.message));
@@ -199,23 +115,6 @@ export async function deleteHandler(
   }
 }
 
-/**
- * @api {patch} /api/v1/internal/favorite-peak/:id/position Update Position
- * @apiName UpdateFavoritePeakPosition
- * @apiGroup FavoritePeak
- * @apiVersion 1.0.0
- *
- * @apiDescription Updates the position of a favorite peak in user's list
- *
- * @apiParam {Number} id Favorite peak identifier
- * @apiParam {Number} newPosition New position in list
- *
- * @apiSuccess {Object} data Success confirmation
- *
- * @apiError {String} ValidationError Invalid parameters provided
- * @apiError {String} UnauthorizedError User lacks permission
- * @apiError {String} ServerError Internal server error
- */
 export async function patchPositionHandler(
   req: Request,
   res: Response,
@@ -223,25 +122,26 @@ export async function patchPositionHandler(
 ): Promise<void> {
   const operation = new CrudController([{ securable, permission: 'UPDATE' }]);
 
-  const combinedSchema = z.object({
-    id: z.coerce.number().int().positive(),
-    newPosition: z.number().int().positive(),
-  });
+  const [validatedParams, paramsError] = await operation.update(req, updatePositionParamsSchema);
 
-  const [validated, error] = await operation.update(req, combinedSchema);
+  if (!validatedParams) {
+    return next(paramsError);
+  }
 
-  if (!validated) {
-    return next(error);
+  const bodyValidation = updatePositionBodySchema.safeParse(req.body);
+
+  if (!bodyValidation.success) {
+    return res.status(400).json(errorResponse('invalidRequestBody'));
   }
 
   try {
     await favoritePeakUpdatePosition({
-      ...validated.credential,
-      idFavoritePeak: validated.params.id,
-      newPosition: validated.body.newPosition,
+      ...validatedParams.credential,
+      idFavoritePeak: validatedParams.params.id,
+      newPosition: bodyValidation.data.newPosition,
     });
 
-    res.json(successResponse({ updated: true }));
+    res.json(successResponse({ success: true }));
   } catch (error: any) {
     if (error.number === 51000) {
       res.status(400).json(errorResponse(error.message));
@@ -251,26 +151,14 @@ export async function patchPositionHandler(
   }
 }
 
-/**
- * @api {get} /api/v1/internal/favorite-peak/check/:peakId Check Favorite Status
- * @apiName CheckFavoritePeakExists
- * @apiGroup FavoritePeak
- * @apiVersion 1.0.0
- *
- * @apiDescription Checks if a peak is in user's favorites
- *
- * @apiParam {String} peakId External peak identifier
- *
- * @apiSuccess {Boolean} isFavorited True if peak is favorited
- *
- * @apiError {String} ValidationError Invalid parameters provided
- * @apiError {String} UnauthorizedError User lacks permission
- * @apiError {String} ServerError Internal server error
- */
-export async function checkHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function checkExistsHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   const operation = new CrudController([{ securable, permission: 'READ' }]);
 
-  const [validated, error] = await operation.read(req, peakIdParamSchema);
+  const [validated, error] = await operation.read(req, checkExistsParamsSchema);
 
   if (!validated) {
     return next(error);

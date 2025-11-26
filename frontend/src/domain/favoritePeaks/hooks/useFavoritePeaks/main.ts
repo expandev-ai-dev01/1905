@@ -1,18 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { favoritePeakService } from '../../services';
-import type { FavoritePeakCreateDto, FavoritePeakUpdatePositionDto } from '../../types';
+import type { CreateFavoritePeakDto, UpdatePositionDto } from '../../types';
+import type { UseFavoritePeaksOptions, UseFavoritePeaksReturn } from './types';
 
-export const useFavoritePeaks = () => {
+export const useFavoritePeaks = (options: UseFavoritePeaksOptions = {}): UseFavoritePeaksReturn => {
   const queryClient = useQueryClient();
   const queryKey = ['favoritePeaks'];
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey,
     queryFn: () => favoritePeakService.list(),
+    enabled: options.enabled ?? true,
   });
 
   const { mutateAsync: create, isPending: isCreating } = useMutation({
-    mutationFn: (dto: FavoritePeakCreateDto) => favoritePeakService.create(dto),
+    mutationFn: (dto: CreateFavoritePeakDto) => favoritePeakService.create(dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
     },
@@ -26,16 +28,15 @@ export const useFavoritePeaks = () => {
   });
 
   const { mutateAsync: updatePosition, isPending: isUpdatingPosition } = useMutation({
-    mutationFn: ({
-      idFavoritePeak,
-      dto,
-    }: {
-      idFavoritePeak: number;
-      dto: FavoritePeakUpdatePositionDto;
-    }) => favoritePeakService.updatePosition(idFavoritePeak, dto),
+    mutationFn: ({ idFavoritePeak, dto }: { idFavoritePeak: number; dto: UpdatePositionDto }) =>
+      favoritePeakService.updatePosition(idFavoritePeak, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
     },
+  });
+
+  const { mutateAsync: checkExists } = useMutation({
+    mutationFn: (peakId: string) => favoritePeakService.checkExists(peakId),
   });
 
   return {
@@ -44,10 +45,11 @@ export const useFavoritePeaks = () => {
     error,
     refetch,
     create,
-    isCreating,
     remove,
-    isRemoving,
     updatePosition,
+    checkExists,
+    isCreating,
+    isRemoving,
     isUpdatingPosition,
   };
 };
